@@ -22,7 +22,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -37,6 +36,7 @@ jobs:
           ALIEXPRESS_APP_SECRET: ${{ secrets.ALIEXPRESS_APP_SECRET }}
           ALIEXPRESS_TRACKING_ID: ${{ secrets.ALIEXPRESS_TRACKING_ID }}
         run: |
+          python -c "p='aliexpress_telegram_bot.py'; s=open(p,encoding='utf-8').read(); open(p,'w',encoding='utf-8').write(s.split('main()#!/usr/bin/env')[0]+'main()\n') if 'main()#!/usr/bin/env' in s else None"
           python aliexpress_telegram_bot.py --once
 
       - name: Save sent product history to prevent duplicates

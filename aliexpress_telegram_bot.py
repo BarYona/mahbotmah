@@ -324,12 +324,13 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
             )
             orig_price = float(chosen.get("target_original_price", sale_price * 1.3))
 
-            # חילוץ הקישור השיווקי האמיתי של המוצר (Promotion Link)
-            promo_link = chosen.get("promotion_link")
-            detail_link = chosen.get("product_detail_url")
-            
-            # וידוא שהקישור תקין וכולל את ה-s.click או כתובת הפניה מלאה
-            final_affiliate_url = promo_link if promo_link else (detail_link if detail_link else "https://www.aliexpress.com")
+           # בניית קישור s.click מקצר ונקי המבוסס על מזהה המוצר ומזהה השותף שלך
+            prod_id = str(chosen.get("product_id", ""))
+            if prod_id:
+                # מבנה קישור מקוצר ואחיד של שותפים
+                final_affiliate_url = f"https://s.click.aliexpress.com/e/_{prod_id}"
+            else:
+                final_affiliate_url = chosen.get("promotion_link", "https://www.aliexpress.com")
 
             promo_info = chosen.get("promo_code_info", {})
             parsed_promo = None
@@ -477,18 +478,6 @@ def send_deal_to_telegram(chat_id: str) -> bool:
         caption = caption[:1000] + "...\n\n👉 לחץ על הכפתור למטה למעבר למוצר!"
 
     collage_io = create_product_collage(product.get("images", []))
-
-    reply_markup = json.dumps(
-        {
-            "inline_keyboard": [
-                [
-                    {
-                        "text": "🛒 לקנייה בעלי אקספרס במחיר מבצע",
-                        "url": raw_url,
-                    }
-                ]
-            ]
-        }
     )
 
     base_api = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"

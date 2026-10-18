@@ -273,11 +273,8 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
             )
             orig_price = float(chosen.get("target_original_price", sale_price * 1.3))
 
-            # לקיחת הקישור המוכן והמקורי שה-API של עליאקספרס מייצר (ללא שום עריכה מקומית)
-            promotion_link = chosen.get("promotion_link", "")
-            if promotion_link:
-                final_affiliate_url = promotion_link
-            elif prod_id:
+            # יצירת הקישור הקצר המקורי בדיוק כמו באפליקציה: https://s.click.aliexpress.com/e/_ID
+            if prod_id:
                 final_affiliate_url = f"https://s.click.aliexpress.com/e/_{prod_id}"
             else:
                 final_affiliate_url = "https://www.aliexpress.com"
@@ -329,7 +326,7 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
 
     affiliate_url = product.get("affiliate_url", "https://www.aliexpress.com")
 
-    # הצגת הקישור המקורי והאמיתי שה-API הנפיק
+    # הודעה נקייה ומסודרת, בלי טקסטים ארוכים סביב הקישור – רק הקישור הקצר והנקי בסוף
     caption = (
         opener + "\n\n" +
         "🛍️ <b>" + str(product['title']) + "</b>\n\n" +
@@ -338,7 +335,7 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
         "💰 <b>מחיר מקורי:</b> <s>" + f"{orig_price:.0f}" + " ₪</s>\n" +
         "✅ <b>מחיר סופי אחרי קופון:</b> <b>" + f"{final_price:.0f}" + " ₪ בלבד!</b> (חיסכון של " + str(discount_pct) + "% / " + f"{total_saved:.0f}" + " ₪)\n\n" +
         coupon_line + "\n\n" +
-        "🔗 " + affiliate_url
+        affiliate_url
     )
     return caption
 

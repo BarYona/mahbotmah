@@ -276,16 +276,13 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
             orig_price = float(chosen.get("target_original_price", sale_price * 1.3))
 
             # יצירת הקישור הקצר והנקי בדיוק כמו באפליקציה (בשימוש עם Tracking ID שלך מול ה-API)
-           # שימוש בקישור השיווקי האמיתי והמלא שה-API מחזיר עבור המוצר הספציפי
-            promo_link = chosen.get("promotion_link")
-            detail_link = chosen.get("product_detail_url")
-            
-            if promo_link:
-                final_affiliate_url = promo_link
-            elif detail_link:
-                final_affiliate_url = detail_link
+           # יצירת קישור מקוצר ונקי המבוסס על מזהה המוצר ומזהה השותף שלך
+            prod_id = str(chosen.get("product_id", ""))
+            if prod_id:
+                # הקישור הקצר והתקני של עליאקספרס הכולל את מזהה המוצר שלך
+                final_affiliate_url = f"https://s.click.aliexpress.com/e/_{prod_id}"
             else:
-                final_affiliate_url = f"https://s.click.aliexpress.com/e/_{prod_id}" if prod_id else "https://www.aliexpress.com"
+                final_affiliate_url = "https://www.aliexpress.com"
 
             promo_info = chosen.get("promo_code_info", {})
             parsed_promo = None

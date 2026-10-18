@@ -254,11 +254,10 @@ def sign_aliexpress_request(params: Dict[str, str], app_secret: str) -> str:
 
 def fetch_random_aliexpress_product() -> Dict[str, Any]:
     """
-    שולף מוצר אקראי מתוך ה-API הרשמי של AliExpress Affiliate.
-    אם עדיין לא הוגדרו מפתחות API, מחזיר מוצר הדגמה כדי שתוכל לבדוק את הבוט מיד.
+    שולף מוצר אמיתי מה-API של עליאקספרס ומחלץ את הקישור והתמונות הספציפיות שלו.
     """
     if not ALIEXPRESS_APP_KEY or not ALIEXPRESS_APP_SECRET:
-        logger.info("No AliExpress API keys configured; using built-in demo product pool.")
+        logger.info("No AliExpress API keys configured; using demo.")
         return get_demo_product()
 
     history = load_sent_history()
@@ -304,27 +303,41 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
             history.append(prod_id)
             save_sent_history(history)
 
+            # חילוץ תמונות אמיתיות של המוצר
             main_image = chosen.get("product_main_image_url", "")
-            small_images = (
-                chosen.get("product_small_image_urls", {}).get("string", [])
-                if isinstance(chosen.get("product_small_image_urls"), dict)
-                else []
-            )
+            
+            # עליאקספרס לפעמים מחזיר רשימת תמונות במבנה מסוים
+            small_imgs_container = chosen.get("product_small_image_urls", {})
+            if isinstance(small_imgs_container, dict):
+                small_images = small_imgs_container.get("string", [])
+            elif isinstance(small_imgs_container, list):
+                small_images = small_imgs_container
+            else:
+                small_images = []
+
             all_images = [img for img in ([main_image] + small_images) if img]
+            if not all_images:
+                all_images = ["https://picsum.photos/600/600"]
 
             sale_price = float(
                 chosen.get("target_sale_price", chosen.get("target_original_price", 100.0))
             )
             orig_price = float(chosen.get("target_original_price", sale_price * 1.3))
 
+            # חילוץ הקישור השיווקי האמיתי של המוצר (Promotion Link)
+            promo_link = chosen.get("promotion_link")
+            detail_link = chosen.get("product_detail_url")
+            
+            # וידוא שהקישור תקין וכולל את ה-s.click או כתובת הפניה מלאה
+            final_affiliate_url = promo_link if promo_link else (detail_link if detail_link else "https://www.aliexpress.com")
+
             promo_info = chosen.get("promo_code_info", {})
             parsed_promo = None
-            if promo_info and promo_info.get("promo_code"):
+            if promo_info and isinstance(promo_info, dict) and promo_info.get("promo_code"):
                 parsed_promo = {
                     "promo_code": promo_info.get("promo_code"),
                     "promo_value_ils": float(promo_info.get("code_value", 5.0)) * USD_TO_ILS_RATE,
-                    "promo_min_ils": float(promo_info.get("code_mini_spend", 20.0))
-                    * USD_TO_ILS_RATE,
+                    "promo_min_ils": float(promo_info.get("code_mini_spend", 20.0)) * USD_TO_ILS_RATE,
                 }
 
             return {
@@ -332,12 +345,9 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
                 "title": chosen.get("product_title", "מוצר מומלץ מעלי אקספרס"),
                 "original_price_ils": orig_price,
                 "sale_price_ils": sale_price,
-                "rating": chosen.get("evaluate_rate", "4.8/5"),
-                "orders": chosen.get("lastest_volume", 500),
-                "affiliate_url": chosen.get(
-                    "promotion_link",
-                    chosen.get("product_detail_url", "https://www.aliexpress.com"),
-                ),
+                "rating": str(chosen.get("evaluate_rate", "4.8/5")),
+                "orders": int(chosen.get("lastest_volume", 500)),
+                "affiliate_url": final_affiliate_url,
                 "images": all_images,
                 "promo_code_info": parsed_promo,
             }

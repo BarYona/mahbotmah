@@ -1,4 +1,4 @@
-code_content = '''#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 בוט טלגרם אוטומטי לעלי אקספרס (AliExpress Deals & Coupons Telegram Bot)
@@ -321,24 +321,21 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
     discount_pct = int(round((total_saved / orig_price) * 100)) if orig_price > 0 else 0
 
     if best_coupon["code"]:
-        coupon_line = (
-            f"🎟️ <b>הקופון הכי משתלם:</b> <code>{best_coupon['code']}</code> "
-            f"<i>(לחצו על הקוד להעתקה!)</i>\n💡 <b>פרטי ההטבה:</b> {best_coupon['description']}"
-        )
+        coupon_line = "🎟️ <b>הקופון הכי משתלם:</b> <code>" + str(best_coupon['code']) + "</code> <i>(לחצו על הקוד להעתקה!)</i>\n💡 <b>פרטי ההטבה:</b> " + str(best_coupon['description'])
     else:
         coupon_line = "🎟️ <b>קופון:</b> ההנחה יורדת אוטומטית בקופה ללא צורך בקוד!"
 
     affiliate_url = product.get("affiliate_url", "https://www.aliexpress.com")
 
     caption = (
-        f"{opener}\n\n"
-        f"🛍️ <b>{product['title']}</b>\n\n"
-        f"⭐ <b>דירוג הקונים:</b> {product['rating']}\n"
-        f"📦 <b>נמכרו כבר:</b> מעל {product['orders']:,} יחידות!\n\n"
-        f"💰 <b>מחיר מקורי:</b> <s>{orig_price:.0f} ₪</s>\n"
-        f"✅ <b>מחיר סופי אחרי קופון:</b> <b>{final_price:.0f} ₪ בלבד!</b> (חיסכון של {discount_pct}% / {total_saved:.0f} ₪)\n\n"
-        f"{coupon_line}\n\n"
-        f"👉 <a href=\"{affiliate_url}\"><b>למעבר למוצר ורכישה מהירה</b></a>"
+        opener + "\n\n" +
+        "🛍️ <b>" + str(product['title']) + "</b>\n\n" +
+        "⭐ <b>דירוג הקונים:</b> " + str(product['rating']) + "\n" +
+        "📦 <b>נמכרו כבר:</b> מעל " + f"{product['orders']:,}" + " יחידות!\n\n" +
+        "💰 <b>מחיר מקורי:</b> <s>" + f"{orig_price:.0f}" + " ₪</s>\n" +
+        "✅ <b>מחיר סופי אחרי קופון:</b> <b>" + f"{final_price:.0f}" + " ₪ בלבד!</b> (חיסכון של " + str(discount_pct) + "% / " + f"{total_saved:.0f}" + " ₪)\n\n" +
+        coupon_line + "\n\n" +
+        "👉 <a href=\"" + affiliate_url + "\"><b>למעבר למוצר ורכישה מהירה</b></a>"
     )
     return caption
 
@@ -352,17 +349,16 @@ def send_deal_to_telegram(chat_id: str) -> bool:
     caption = format_deal_caption(product, best_coupon)
     
     if len(caption) > 1023:
-        caption = caption[:1000] + "...\n\n👉 לחץ על הקישור למעבר למוצר!"
+        caption = caption[:1000] + "...\n\n👉 למעבר למוצר לחצו על הקישור למעלה!"
 
     collage_io = create_product_collage(product.get("images", []))
 
-    # ללא כפתורים חיצוניים (reply_markup מוסר לחלוטין)
-    base_api = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+    base_api = "https://api.telegram.org/bot" + TELEGRAM_BOT_TOKEN
 
     try:
         if collage_io:
             resp = requests.post(
-                f"{base_api}/sendPhoto",
+                base_api + "/sendPhoto",
                 data={
                     "chat_id": chat_id,
                     "caption": caption,
@@ -374,7 +370,7 @@ def send_deal_to_telegram(chat_id: str) -> bool:
             resp.raise_for_status()
         else:
             resp = requests.post(
-                f"{base_api}/sendMessage",
+                base_api + "/sendMessage",
                 data={
                     "chat_id": chat_id,
                     "text": caption,
@@ -384,11 +380,11 @@ def send_deal_to_telegram(chat_id: str) -> bool:
             )
             resp.raise_for_status()
 
-        logger.info(f"Successfully sent deal to chat {chat_id}!")
+        logger.info("Successfully sent deal to chat " + str(chat_id) + "!")
         return True
 
     except Exception as e:
-        logger.error(f"Failed to send deal to Telegram: {e}")
+        logger.error("Failed to send deal to Telegram: " + str(e))
         return False
 
 def main() -> None:
@@ -402,11 +398,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-'''
-
-with open("aliexpress_telegram_bot.py", "w", encoding="utf-8") as f:
-    f.write(code_content)
-
-import py_compile
-py_compile.compile("aliexpress_telegram_bot.py", doraise=True)
-print("Syntax check passed successfully!")

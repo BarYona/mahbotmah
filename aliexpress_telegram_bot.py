@@ -185,6 +185,49 @@ def sign_aliexpress_request(params: Dict[str, str], app_secret: str) -> str:
         .upper()
     )
 
+def generate_aliexpress_short_link(original_url: str) -> str:
+    """
+    משתמש בפונקציית ההמרה הרשמית של עליאקספרס כדי לקבל קישור s.click קצר ותקני המקושר לחשבון שלך.
+    """
+    if not ALIEXPRESS_APP_KEY or not ALIEXPRESS_APP_SECRET or not original_url:
+        return original_url
+
+    api_url = "https://api-sg.aliexpress.com/sync"
+    params = {
+        "app_key": ALIEXPRESS_APP_KEY,
+        "method": "aliexpress.affiliate.link.generate",
+        "sign_method": "sha256",
+        "timestamp": str(int(time.time() * 1000)),
+        "format": "json",
+        "v": "2.0",
+        "promotion_link_type": "0",  # קישור רגיל
+        "source_values": original_url,
+        "tracking_id": ALIEXPRESS_TRACKING_ID,
+    }
+    params["sign"] = sign_aliexpress_request(params, ALIEXPRESS_APP_SECRET)
+
+    try:
+        response = requests.get(api_url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        result = (
+            data.get("aliexpress_affiliate_link_generate_response", {})
+            .get("resp_result", {})
+            .get("result", {})
+            .get("promotion_links", {})
+            .get("promotion_link", [])
+        )
+        
+        if result and isinstance(result, list):
+            short_link = result[0].get("short_link") or result[0].get("promotion_link")
+            if short_link:
+                return short_link
+    except Exception as e:
+        logger.warning(f"Failed to generate short affiliate link via API: {e}")
+
+    return original_url
+
 def get_demo_product() -> Dict[str, Any]:
     demo_pool = [
         {
@@ -273,12 +316,9 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
             )
             orig_price = float(chosen.get("target_original_price", sale_price * 1.3))
 
-            # שאיבת הקישור המקורי והאמיתי בדיוק כפי שה-API של עליאקספרס מייצר אותו (ללא שום מניפולציה)
-            promotion_link = chosen.get("promotion_link", "")
-            if promotion_link:
-                final_affiliate_url = promotion_link
-            else:
-                final_affiliate_url = "https://www.aliexpress.com"
+            # קבלת כתובת המוצר המקורית והמרתה המלאה לקישור s.click רשמי דרך ה-API
+            raw_detail_url = chosen.get("product_detail_url") or f"https://www.aliexpress.com/item/{prod_id}.html"
+            final_affiliate_url = generate_aliexpress_short_link(raw_detail_url)
 
             promo_info = chosen.get("promo_code_info", {})
             parsed_promo = None
@@ -327,6 +367,7 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
 
     affiliate_url = product.get("affiliate_url", "https://www.aliexpress.com")
 
+    # הודעה נקייה ומסודרת עם הקישור הקצר והרשמי בסופה
     caption = (
         opener + "\n\n" +
         "🛍️ <b>" + str(product['title']) + "</b>\n\n" +

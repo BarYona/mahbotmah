@@ -1,0 +1,50 @@
+name: AliExpress Telegram Deals Bot
+
+on:
+  # הפעלה אוטומטית כל 30 דקות (ניתן לשנות ל-*/15 או */20)
+  schedule:
+    - cron: '*/30 * * * *'
+  # מאפשר גם הפעלה ידנית בלחיצת כפתור מתוך לשונית Actions בגיטהאב לבדיקה מיידית
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  send-deal:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install requests pillow
+
+      - name: Run bot once and send deal to Telegram
+        env:
+          RUN_ONCE: "true"
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ALIEXPRESS_APP_KEY: ${{ secrets.ALIEXPRESS_APP_KEY }}
+          ALIEXPRESS_APP_SECRET: ${{ secrets.ALIEXPRESS_APP_SECRET }}
+          ALIEXPRESS_TRACKING_ID: ${{ secrets.ALIEXPRESS_TRACKING_ID }}
+        run: |
+          python aliexpress_telegram_bot.py --once
+
+      - name: Save sent product history to prevent duplicates
+        run: |
+          if [ -f sent_products.json ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add sent_products.json
+            git diff --staged --quiet || git commit -m "chore: update sent products history [skip ci]"
+            git push
+          fi

@@ -254,7 +254,7 @@ def sign_aliexpress_request(params: Dict[str, str], app_secret: str) -> str:
 
 def fetch_random_aliexpress_product() -> Dict[str, Any]:
     """
-    שולף מוצר אמיתי מה-API של עליאקספרס ומחלץ את הקישור והתמונות הספציפיות שלו.
+    שולף מוצר אמיתי מה-API של עליאקספרס ומייצר קישור מקוצר ונקי.
     """
     if not ALIEXPRESS_APP_KEY or not ALIEXPRESS_APP_SECRET:
         logger.info("No AliExpress API keys configured; using demo.")
@@ -303,10 +303,7 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
             history.append(prod_id)
             save_sent_history(history)
 
-            # חילוץ תמונות אמיתיות של המוצר
             main_image = chosen.get("product_main_image_url", "")
-            
-            # עליאקספרס לפעמים מחזיר רשימת תמונות במבנה מסוים
             small_imgs_container = chosen.get("product_small_image_urls", {})
             if isinstance(small_imgs_container, dict):
                 small_images = small_imgs_container.get("string", [])
@@ -324,10 +321,8 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
             )
             orig_price = float(chosen.get("target_original_price", sale_price * 1.3))
 
-           # בניית קישור s.click מקצר ונקי המבוסס על מזהה המוצר ומזהה השותף שלך
-            prod_id = str(chosen.get("product_id", ""))
+            # יצירת קישור מקוצר ונקי המבוסס על מזהה המוצר
             if prod_id:
-                # מבנה קישור מקוצר ואחיד של שותפים
                 final_affiliate_url = f"https://s.click.aliexpress.com/e/_{prod_id}"
             else:
                 final_affiliate_url = chosen.get("promotion_link", "https://www.aliexpress.com")

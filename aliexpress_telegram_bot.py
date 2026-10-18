@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+code_content = '''#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 בוט טלגרם אוטומטי לעלי אקספרס (AliExpress Deals & Coupons Telegram Bot)
@@ -196,7 +196,7 @@ def get_demo_product() -> Dict[str, Any]:
             "sale_price_ils": 165.0,
             "rating": "4.9 ⭐",
             "orders": 5400,
-            "affiliate_url": "https://www.aliexpress.com/",
+            "affiliate_url": "https://s.click.aliexpress.com/e/_demo1001",
             "images": [
                 "https://picsum.photos/seed/earbuds1/600/600",
             ],
@@ -278,7 +278,7 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
             if prod_id:
                 final_affiliate_url = f"https://s.click.aliexpress.com/e/_{prod_id}"
             else:
-                final_affiliate_url = chosen.get("promotion_link", "https://www.aliexpress.com")
+                final_affiliate_url = "https://www.aliexpress.com"
 
             promo_info = chosen.get("promo_code_info", {})
             parsed_promo = None
@@ -328,6 +328,8 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
     else:
         coupon_line = "🎟️ <b>קופון:</b> ההנחה יורדת אוטומטית בקופה ללא צורך בקוד!"
 
+    affiliate_url = product.get("affiliate_url", "https://www.aliexpress.com")
+
     caption = (
         f"{opener}\n\n"
         f"🛍️ <b>{product['title']}</b>\n\n"
@@ -336,6 +338,7 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
         f"💰 <b>מחיר מקורי:</b> <s>{orig_price:.0f} ₪</s>\n"
         f"✅ <b>מחיר סופי אחרי קופון:</b> <b>{final_price:.0f} ₪ בלבד!</b> (חיסכון של {discount_pct}% / {total_saved:.0f} ₪)\n\n"
         f"{coupon_line}\n\n"
+        f"👉 <a href=\"{affiliate_url}\"><b>למעבר למוצר ורכישה מהירה</b></a>"
     )
     return caption
 
@@ -346,27 +349,14 @@ def send_deal_to_telegram(chat_id: str) -> bool:
         promo_code_info=product.get("promo_code_info"),
     )
     
-    raw_url = product.get("affiliate_url", "https://www.aliexpress.com")
     caption = format_deal_caption(product, best_coupon)
     
     if len(caption) > 1023:
-        caption = caption[:1000] + "...\n\n👉 לחץ על הכפתור למטה למעבר למוצר!"
+        caption = caption[:1000] + "...\n\n👉 לחץ על הקישור למעבר למוצר!"
 
     collage_io = create_product_collage(product.get("images", []))
 
-    reply_markup = json.dumps(
-        {
-            "inline_keyboard": [
-                [
-                    {
-                        "text": "🛒 לקנייה בעלי אקספרס במחיר מבצע",
-                        "url": raw_url,
-                    }
-                ]
-            ]
-        }
-    )
-
+    # ללא כפתורים חיצוניים (reply_markup מוסר לחלוטין)
     base_api = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
     try:
@@ -377,7 +367,6 @@ def send_deal_to_telegram(chat_id: str) -> bool:
                     "chat_id": chat_id,
                     "caption": caption,
                     "parse_mode": "HTML",
-                    "reply_markup": reply_markup,
                 },
                 files={"photo": ("collage.jpg", collage_io, "image/jpeg")},
                 timeout=30,
@@ -390,7 +379,6 @@ def send_deal_to_telegram(chat_id: str) -> bool:
                     "chat_id": chat_id,
                     "text": caption,
                     "parse_mode": "HTML",
-                    "reply_markup": reply_markup,
                 },
                 timeout=30,
             )
@@ -414,3 +402,11 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+'''
+
+with open("aliexpress_telegram_bot.py", "w", encoding="utf-8") as f:
+    f.write(code_content)
+
+import py_compile
+py_compile.compile("aliexpress_telegram_bot.py", doraise=True)
+print("Syntax check passed successfully!")

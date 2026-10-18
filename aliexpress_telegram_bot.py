@@ -449,8 +449,8 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
 
 def send_deal_to_telegram(chat_id: str) -> bool:
     """
-    שולף מוצר, מחשב את הקופון הכי זול, בונה קולאז' ושולח לקבוצת הטלגרם
-    באמצעות ה-HTTP API הרשמי של טלגרם (מתאים גם ל-GitHub Actions וגם לשרת).
+    שולף מוצר, מחשב את הקופון הכי זול, בונה קולאז' ושולח לקבוצת הטלגרם.
+    אם שליחת התמונה נכשלת, הבוט שולח הודעת טקסט רגילה עם הקישור כדי שלא תיעצר הריצה.
     """
     product = fetch_random_aliexpress_product()
     best_coupon = find_best_coupon_and_price(
@@ -458,7 +458,12 @@ def send_deal_to_telegram(chat_id: str) -> bool:
         promo_code_info=product.get("promo_code_info"),
     )
     caption = format_deal_caption(product, best_coupon)
-    collage_io = create_product_collage(product.get("images", []))
+    
+    collage_io = None
+    try:
+        collage_io = create_product_collage(product.get("images", []))
+    except Exception as e:
+        logger.warning(f"Could not create collage from product images: {e}")
 
     reply_markup = json.dumps(
         {
@@ -476,6 +481,7 @@ def send_deal_to_telegram(chat_id: str) -> bool:
     base_api = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
     try:
+        # נסיון שליחה עם תמונה/קולאז'
         if collage_io:
             resp = requests.post(
                 f"{base_api}/sendPhoto",
@@ -488,7 +494,20 @@ def send_deal_to_telegram(chat_id: str) -> bool:
                 files={"photo": ("collage.jpg", collage_io, "image/jpeg")},
                 timeout=30,
             )
+            # אם שליחת התמונה נכשלה בגלל 400, ננסה לשלוח כטקסט נקי
+            if resp.status_code == 400:
+                logger.warning("sendPhoto failed with 400, falling back to sendMessage...")
+                raise ValueError("Fallback to text message")
         else:
+            raise ValueError("No collage generated")
+
+        resp.raise_for_status()
+        logger.info(f"Successfully sent deal '{product['id']}' with photo to chat {chat_id}!")
+        return True
+
+    except Exception as img_err:
+        # גיבוי: שליחה הודעת טקסט רגילה בלבד אם התמונה עשתה בעיה
+        try:
             resp = requests.post(
                 f"{base_api}/sendMessage",
                 data={
@@ -499,12 +518,12 @@ def send_deal_to_telegram(chat_id: str) -> bool:
                 },
                 timeout=30,
             )
-        resp.raise_for_status()
-        logger.info(f"Successfully sent deal '{product['id']}' to chat {chat_id}!")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to send deal to Telegram: {e}")
-        return False
+            resp.raise_for_status()
+            logger.info(f"Successfully sent deal '{product['id']}' as text fallback to chat {chat_id}!")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send deal to Telegram entirely: {e}")
+            return False
 
 
 def main() -> None:

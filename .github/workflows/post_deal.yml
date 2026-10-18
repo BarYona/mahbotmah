@@ -3,7 +3,7 @@ name: AliExpress Telegram Deals Bot
 on:
   # הפעלה אוטומטית כל 30 דקות (ניתן לשנות ל-*/15 או */20)
   schedule:
-    - cron: '*/13 * * * *'
+    - cron: '*/20 * * * *'
   # מאפשר גם הפעלה ידנית בלחיצת כפתור מתוך לשונית Actions בגיטהאב לבדיקה מיידית
   workflow_dispatch:
 

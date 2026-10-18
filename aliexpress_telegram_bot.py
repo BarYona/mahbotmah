@@ -2,18 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 בוט טלגרם אוטומטי לעלי אקספרס (AliExpress Deals & Coupons Telegram Bot)
-מותאם להרצה חינמית בענן עם GitHub Actions (ללא צורך להשאיר מחשב דולק!)
-או להרצה רציפה על שרת/מחשב.
-
-תכונות הבוט:
-1. שולף מוצרים חמים ואקראיים מתוך ה-API הרשמי של AliExpress Affiliate (או ממאגר בדיקה מובנה).
-2. מחשב אוטומטית אילו קופונים (קופוני מדרגה + קופוני מוכר) תקפים למוצר ובוחר את הקופון שנותן את המחיר הסופי הזול ביותר.
-3. מוריד את תמונות המוצר ויוצר מהן קולאז' מרובע (2x2) אוטומטי וחד באמצעות ספריית Pillow.
-4. מנסח פוסט שיווקי בעברית עם אימוג'ים, דירוג כוכבים, כמות הזמנות, קוד קופון להעתקה בלחיצה וכפתור רכישה.
-5. תומך במצב שליחה חד-פעמית (--once או RUN_ONCE=true) עבור GitHub Actions וגם במצב לולאה רציפה.
-
-התקנת ספריות נדרשות:
-pip install requests pillow
 """
 
 import hashlib
@@ -30,38 +18,22 @@ from typing import Any, Dict, List, Optional, Tuple
 from PIL import Image, ImageOps
 import requests
 
-# ==========================================
-# 1. הגדרות קונפיגורציה (Configuration)
-# ==========================================
-
-# טוקן הבוט מ-@BotFather בטלגרם (מוזן אוטומטית מ-GitHub Secrets בענן)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN")
-
-# מזהה הקבוצה או הערוץ (למשל "-1001234567890" או "@your_channel_username")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "-1001234567890")
-
-# מצב הרצה: אם מוגדר "true" (ברירת מחדל ב-GitHub Actions), שולח דיל אחד ונסגר מיד
 RUN_ONCE = os.getenv("RUN_ONCE", "false").lower() in ("true", "1", "yes") or "--once" in sys.argv
-
-# תדירות שליחת הודעות בדקות (רלוונטי רק אם מריצים בלולאה רציפה על מחשב/שרת)
 POST_INTERVAL_MINUTES = int(os.getenv("POST_INTERVAL_MINUTES", "30"))
 
-# פרטי חשבון AliExpress Portals Affiliate API (https://portals.aliexpress.com/)
 ALIEXPRESS_APP_KEY = os.getenv("ALIEXPRESS_APP_KEY", "")
 ALIEXPRESS_APP_SECRET = os.getenv("ALIEXPRESS_APP_SECRET", "")
 ALIEXPRESS_TRACKING_ID = os.getenv("ALIEXPRESS_TRACKING_ID", "default")
 
-# מטבע ושפה מועדפים
-TARGET_CURRENCY = "ILS"  # ניתן לשנות ל-"USD"
-TARGET_LANGUAGE = "HE"   # עברית ("HE") או אנגלית ("EN")
-SHIP_TO_COUNTRY = "IL"   # ישראל
-USD_TO_ILS_RATE = 3.75   # שער המרה משוער לחישוב מדרגות קופונים דולריים
+TARGET_CURRENCY = "ILS"
+TARGET_LANGUAGE = "HE"
+SHIP_TO_COUNTRY = "IL"
+USD_TO_ILS_RATE = 3.75
 
-# קובץ לשמירת היסטוריית מוצרים שנשלחו כדי למנוע כפילויות בין הרצות
 HISTORY_FILE = "sent_products.json"
 
-# רשימת קופוני מדרגה כלליים בעלי אקספרס (ניתן לעדכן בכל סייל חודשי)
-# המבנה: (סכום מינימום להזמנה ב-₪, גובה ההנחה ב-₪, קוד הקופון, תיאור)
 SITEWIDE_COUPONS: List[Tuple[float, float, str, str]] = [
     (55.0, 7.5, "AEIL02", "$2 הנחה בקנייה מעל $15"),
     (145.0, 18.5, "AEIL05", "$5 הנחה בקנייה מעל $39"),
@@ -70,7 +42,6 @@ SITEWIDE_COUPONS: List[Tuple[float, float, str, str]] = [
     (990.0, 130.0, "AEIL35", "$35 הנחה בקנייה מעל $269"),
 ]
 
-# מילות מפתח וקטגוריות לבחירה אקראית של מוצרים מבוקשים
 SEARCH_KEYWORDS = [
     "wireless earbuds bluetooth",
     "smart watch fitness",
@@ -90,13 +61,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-# ==========================================
-# 2. ניהול היסטוריית מוצרים למניעת כפילויות
-# ==========================================
-
 def load_sent_history() -> List[str]:
-    """טוען את רשימת המוצרים שכבר פורסמו מתוך קובץ JSON מקומי."""
     if os.path.exists(HISTORY_FILE):
         try:
             with open(HISTORY_FILE, "r", encoding="utf-8") as f:
@@ -107,29 +72,18 @@ def load_sent_history() -> List[str]:
             logger.warning(f"Could not read history file: {e}")
     return []
 
-
 def save_sent_history(history: List[str]) -> None:
-    """שומר את 200 המוצרים האחרונים שפורסמו כדי לא לחזור עליהם."""
     try:
         with open(HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(history[-200:], f, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.warning(f"Could not save history file: {e}")
 
-
-# ==========================================
-# 3. מנוע חישוב הקופון הטוב והזול ביותר
-# ==========================================
-
 def find_best_coupon_and_price(
     base_price_ils: float,
     promo_code_info: Optional[Dict[str, Any]] = None,
     seller_discount_ils: float = 0.0,
 ) -> Dict[str, Any]:
-    """
-    בודק את כל הקופונים האפשריים (קופוני מדרגה כלליים + קופון מוכר/פרומו מה-API)
-    ומחזיר את השילוב שמביא למחיר הסופי הנמוך ביותר.
-    """
     price_after_seller = max(0.0, base_price_ils - seller_discount_ils)
 
     candidates = [
@@ -141,7 +95,6 @@ def find_best_coupon_and_price(
         }
     ]
 
-    # בדיקת קופוני מדרגה כלליים
     for min_spend, discount, code, desc in SITEWIDE_COUPONS:
         if price_after_seller >= min_spend:
             total_discount = seller_discount_ils + discount
@@ -155,7 +108,6 @@ def find_best_coupon_and_price(
                 }
             )
 
-    # בדיקת קופון ספציפי שהגיע מה-API של המוצר (אם קיים)
     if promo_code_info and promo_code_info.get("promo_code"):
         promo_code = promo_code_info["promo_code"]
         promo_discount = float(promo_code_info.get("promo_value_ils", 0.0))
@@ -172,20 +124,10 @@ def find_best_coupon_and_price(
                 }
             )
 
-    # מיון לפי המחיר הסופי הנמוך ביותר
     best_option = min(candidates, key=lambda x: x["final_price_ils"])
     return best_option
 
-
-# ==========================================
-# 4. יצירת קולאז' תמונות אוטומטי (Pillow)
-# ==========================================
-
 def create_product_collage(image_urls: List[str], canvas_size: int = 1000) -> Optional[BytesIO]:
-    """
-    מוריד עד 4 תמונות של המוצר ויוצר קולאז' מרובע וחד (2x2).
-    אם יש רק תמונה אחת תקינה, מחזיר אותה בגודל מותאם.
-    """
     downloaded_images: List[Image.Image] = []
 
     for url in image_urls[:4]:
@@ -232,13 +174,7 @@ def create_product_collage(image_urls: List[str], canvas_size: int = 1000) -> Op
     output_buffer.seek(0)
     return output_buffer
 
-
-# ==========================================
-# 5. שליפת מוצרים מ-AliExpress Affiliate API
-# ==========================================
-
 def sign_aliexpress_request(params: Dict[str, str], app_secret: str) -> str:
-    """חתימת HMAC-SHA256 תקנית עבור AliExpress Open Platform API."""
     sorted_keys = sorted(params.keys())
     concatenated = "".join(f"{k}{params[k]}" for k in sorted_keys)
     return (
@@ -251,11 +187,29 @@ def sign_aliexpress_request(params: Dict[str, str], app_secret: str) -> str:
         .upper()
     )
 
+def get_demo_product() -> Dict[str, Any]:
+    demo_pool = [
+        {
+            "id": "demo_1001",
+            "title": "אוזניות אלחוטיות Anker Soundcore עם סינון רעשים אקטיבי ANC",
+            "original_price_ils": 240.0,
+            "sale_price_ils": 165.0,
+            "rating": "4.9 ⭐",
+            "orders": 5400,
+            "affiliate_url": "https://www.aliexpress.com/",
+            "images": [
+                "https://picsum.photos/seed/earbuds1/600/600",
+            ],
+            "promo_code_info": {
+                "promo_code": "SOUND25",
+                "promo_value_ils": 25.0,
+                "promo_min_ils": 150.0,
+            },
+        }
+    ]
+    return random.choice(demo_pool)
 
 def fetch_random_aliexpress_product() -> Dict[str, Any]:
-    """
-    שולף מוצר אמיתי מה-API של עליאקספרס ומייצר קישור מקוצר ונקי.
-    """
     if not ALIEXPRESS_APP_KEY or not ALIEXPRESS_APP_SECRET:
         logger.info("No AliExpress API keys configured; using demo.")
         return get_demo_product()
@@ -321,7 +275,6 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
             )
             orig_price = float(chosen.get("target_original_price", sale_price * 1.3))
 
-            # יצירת קישור מקוצר ונקי המבוסס על מזהה המוצר
             if prod_id:
                 final_affiliate_url = f"https://s.click.aliexpress.com/e/_{prod_id}"
             else:
@@ -353,72 +306,7 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
 
     return get_demo_product()
 
-
-def get_demo_product() -> Dict[str, Any]:
-    """מאגר מוצרים להדגמה ובדיקה מיידית של הבוט לפני חיבור מפתחות API."""
-    demo_pool = [
-        {
-            "id": "demo_1001",
-            "title": "אוזניות אלחוטיות Anker Soundcore עם סינון רעשים אקטיבי ANC וסוללה ל-40 שעות",
-            "original_price_ils": 240.0,
-            "sale_price_ils": 165.0,
-            "rating": "4.9 ⭐ (98% ביקורות חיוביות)",
-            "orders": 5400,
-            "affiliate_url": "https://www.aliexpress.com/",
-            "images": [
-                "https://picsum.photos/seed/earbuds1/600/600",
-                "https://picsum.photos/seed/earbuds2/600/600",
-                "https://picsum.photos/seed/earbuds3/600/600",
-                "https://picsum.photos/seed/earbuds4/600/600",
-            ],
-            "promo_code_info": {
-                "promo_code": "SOUND25",
-                "promo_value_ils": 25.0,
-                "promo_min_ils": 150.0,
-            },
-        },
-        {
-            "id": "demo_1002",
-            "title": "מטען קיר מהיר Baseus GaN 65W עם 3 יציאות (USB-C + USB-A) למחשב נייד ולסמארטפון",
-            "original_price_ils": 135.0,
-            "sale_price_ils": 82.0,
-            "rating": "4.9 ⭐ (99% ביקורות חיוביות)",
-            "orders": 12300,
-            "affiliate_url": "https://www.aliexpress.com/",
-            "images": [
-                "https://picsum.photos/seed/charger1/600/600",
-                "https://picsum.photos/seed/charger2/600/600",
-                "https://picsum.photos/seed/charger3/600/600",
-                "https://picsum.photos/seed/charger4/600/600",
-            ],
-            "promo_code_info": None,
-        },
-        {
-            "id": "demo_1003",
-            "title": "מקרן קולנוע ביתי נייד החדש Full HD 1080P תומך WiFi 6 ובלוטות' עם מערכת אנדרואיד מובנית",
-            "original_price_ils": 420.0,
-            "sale_price_ils": 310.0,
-            "rating": "4.8 ⭐ (96% ביקורות חיוביות)",
-            "orders": 3200,
-            "affiliate_url": "https://www.aliexpress.com/",
-            "images": [
-                "https://picsum.photos/seed/proj1/600/600",
-                "https://picsum.photos/seed/proj2/600/600",
-                "https://picsum.photos/seed/proj3/600/600",
-                "https://picsum.photos/seed/proj4/600/600",
-            ],
-            "promo_code_info": None,
-        },
-    ]
-    return random.choice(demo_pool)
-
-
-# ==========================================
-# 6. עיצוב הפוסט ושליחה ישירה לטלגרם
-# ==========================================
-
 def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) -> str:
-    """בונה טקסט שיווקי אטרקטיבי בעברית עם אימוג'ים, דירוג והקופון המשתלם ביותר."""
     openers = [
         "🔥 <b>דיל רותח שמצאתי עכשיו בעלי אקספרס!</b> 🔥",
         "⚡ <b>ירידת מחיר מטורפת על אחד המוצרים המבוקשים!</b> ⚡",
@@ -432,12 +320,13 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
     total_saved = max(0.0, orig_price - final_price)
     discount_pct = int(round((total_saved / orig_price) * 100)) if orig_price > 0 else 0
 
-    coupon_line = (
-        f"🎟️ <b>הקופון הכי משתלם:</b> <code>{best_coupon['code']}</code> <i>(לחצו על הקוד להעתקה!)</i>\n"
-        f"💡 <b>פרטי ההטבה:</b> {best_coupon['description']}"
-        if best_coupon["code"]
-        else "🎟️ <b>קופון:</b> ההנחה יורדת אוטומטית בקופה ללא צורך בקוד!"
-    )
+    if best_coupon["code"]:
+        coupon_line = (
+            f"🎟️ <b>הקופון הכי משתלם:</b> <code>{best_coupon['code']}</code> "
+            f"<i>(לחצו על הקוד להעתקה!)</i>\n💡 <b>פרטי ההטבה:</b> {best_coupon['description']}"
+        )
+    else:
+        coupon_line = "🎟️ <b>קופון:</b> ההנחה יורדת אוטומטית בקופה ללא צורך בקוד!"
 
     caption = (
         f"{opener}\n\n"
@@ -447,17 +336,10 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
         f"💰 <b>מחיר מקורי:</b> <s>{orig_price:.0f} ₪</s>\n"
         f"✅ <b>מחיר סופי אחרי קופון:</b> <b>{final_price:.0f} ₪ בלבד!</b> (חיסכון של {discount_pct}% / {total_saved:.0f} ₪)\n\n"
         f"{coupon_line}\n\n"
-        f"👇 <b>למעבר מהיר למוצר ולמימוש המבצע:</b>\n"
-        f"{product['affiliate_url']}"
     )
     return caption
 
-
 def send_deal_to_telegram(chat_id: str) -> bool:
-    """
-    שולף מוצר, מחשב קופון, בונה קולאז' ושולח תמונה בראש המודעה 
-    תוך וידוא שהכיתוב לא עובר את מגבלת 1024 התווים של טלגרם לתמונות.
-    """
     product = fetch_random_aliexpress_product()
     best_coupon = find_best_coupon_and_price(
         base_price_ils=product["sale_price_ils"],
@@ -465,14 +347,24 @@ def send_deal_to_telegram(chat_id: str) -> bool:
     )
     
     raw_url = product.get("affiliate_url", "https://www.aliexpress.com")
-    
     caption = format_deal_caption(product, best_coupon)
     
-    # מגבלת טלגרם ל-Caption של תמונה היא 1024 תווים. אם חורג, נקצר אותו בבטחה.
     if len(caption) > 1023:
         caption = caption[:1000] + "...\n\n👉 לחץ על הכפתור למטה למעבר למוצר!"
 
     collage_io = create_product_collage(product.get("images", []))
+
+    reply_markup = json.dumps(
+        {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": "🛒 לקנייה בעלי אקספרס במחיר מבצע",
+                        "url": raw_url,
+                    }
+                ]
+            ]
+        }
     )
 
     base_api = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
@@ -504,32 +396,21 @@ def send_deal_to_telegram(chat_id: str) -> bool:
             )
             resp.raise_for_status()
 
-        logger.info(f"Successfully sent deal '{product['id']}' to chat {chat_id}!")
+        logger.info(f"Successfully sent deal to chat {chat_id}!")
         return True
 
     except Exception as e:
         logger.error(f"Failed to send deal to Telegram: {e}")
         return False
 
-
 def main() -> None:
-    """נקודת הכניסה: מריץ שליחה חד-פעמית (עבור GitHub Actions) או לולאה מתמשכת."""
-    if TELEGRAM_BOT_TOKEN == "YOUR_TELEGRAM_BOT_TOKEN":
-        print("⚠️ שים לב: יש להגדיר את TELEGRAM_BOT_TOKEN במשתני הסביבה (GitHub Secrets) או בקובץ.")
-        sys.exit(1)
-
     if RUN_ONCE:
-        logger.info("Running in single-shot mode (GitHub Actions / Scheduled Task)...")
         success = send_deal_to_telegram(TELEGRAM_CHAT_ID)
         sys.exit(0 if success else 1)
 
-    logger.info(
-        f"Running in continuous mode! Sending a deal every {POST_INTERVAL_MINUTES} minutes..."
-    )
     while True:
         send_deal_to_telegram(TELEGRAM_CHAT_ID)
         time.sleep(POST_INTERVAL_MINUTES * 60)
-
 
 if __name__ == "__main__":
     main()

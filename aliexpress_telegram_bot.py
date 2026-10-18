@@ -327,6 +327,7 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
 
     affiliate_url = product.get("affiliate_url", "https://www.aliexpress.com")
 
+    # הצגת הקישור עצמו בגוף ההודעה בלי שום טקסט עזר
     caption = (
         opener + "\n\n" +
         "🛍️ <b>" + str(product['title']) + "</b>\n\n" +
@@ -335,7 +336,7 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
         "💰 <b>מחיר מקורי:</b> <s>" + f"{orig_price:.0f}" + " ₪</s>\n" +
         "✅ <b>מחיר סופי אחרי קופון:</b> <b>" + f"{final_price:.0f}" + " ₪ בלבד!</b> (חיסכון של " + str(discount_pct) + "% / " + f"{total_saved:.0f}" + " ₪)\n\n" +
         coupon_line + "\n\n" +
-        "👉 <a href=\"" + affiliate_url + "\"><b>למעבר למוצר ורכישה מהירה</b></a>"
+        "🔗 " + affiliate_url
     )
     return caption
 
@@ -349,7 +350,7 @@ def send_deal_to_telegram(chat_id: str) -> bool:
     caption = format_deal_caption(product, best_coupon)
     
     if len(caption) > 1023:
-        caption = caption[:1000] + "...\n\n👉 למעבר למוצר לחצו על הקישור למעלה!"
+        caption = caption[:1000] + "..."
 
     collage_io = create_product_collage(product.get("images", []))
 

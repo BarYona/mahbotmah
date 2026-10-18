@@ -459,7 +459,8 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
 
 def send_deal_to_telegram(chat_id: str) -> bool:
     """
-    שולף מוצר, מחשב קופון, בונה קולאז' ושולח תמונה בראש המודעה עם כפתור נקי.
+    שולף מוצר, מחשב קופון, בונה קולאז' ושולח תמונה בראש המודעה 
+    תוך וידוא שהכיתוב לא עובר את מגבלת 1024 התווים של טלגרם לתמונות.
     """
     product = fetch_random_aliexpress_product()
     best_coupon = find_best_coupon_and_price(
@@ -467,13 +468,16 @@ def send_deal_to_telegram(chat_id: str) -> bool:
         promo_code_info=product.get("promo_code_info"),
     )
     
-    # חילוץ וקיצור כתובת הקישור אם היא ארוכה מדי
     raw_url = product.get("affiliate_url", "https://www.aliexpress.com")
     
     caption = format_deal_caption(product, best_coupon)
+    
+    # מגבלת טלגרם ל-Caption של תמונה היא 1024 תווים. אם חורג, נקצר אותו בבטחה.
+    if len(caption) > 1023:
+        caption = caption[:1000] + "...\n\n👉 לחץ על הכפתור למטה למעבר למוצר!"
+
     collage_io = create_product_collage(product.get("images", []))
 
-    # כפתור אינטראקטיבי נקי שמוביל למוצר
     reply_markup = json.dumps(
         {
             "inline_keyboard": [
@@ -491,7 +495,6 @@ def send_deal_to_telegram(chat_id: str) -> bool:
 
     try:
         if collage_io:
-            # שליחת תמונה בראש המודעה יחד עם ה-caption (הטקסט למטה) והכפתור
             resp = requests.post(
                 f"{base_api}/sendPhoto",
                 data={
@@ -505,7 +508,6 @@ def send_deal_to_telegram(chat_id: str) -> bool:
             )
             resp.raise_for_status()
         else:
-            # גיבוי אם אין תמונה כלל
             resp = requests.post(
                 f"{base_api}/sendMessage",
                 data={

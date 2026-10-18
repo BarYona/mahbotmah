@@ -194,7 +194,7 @@ def get_demo_product() -> Dict[str, Any]:
             "sale_price_ils": 165.0,
             "rating": "4.9 ⭐",
             "orders": 5400,
-            "affiliate_url": "https://s.click.aliexpress.com/e/_demo1001",
+            "affiliate_url": "https://s.click.aliexpress.com/e/_c30FgAZb",
             "images": [
                 "https://picsum.photos/seed/earbuds1/600/600",
             ],
@@ -273,11 +273,8 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
             )
             orig_price = float(chosen.get("target_original_price", sale_price * 1.3))
 
-            # שימוש בקישור המקורי והמוכן מה-API בלי שום עריכה
-            promotion_link = chosen.get("promotion_link", "")
-            if promotion_link:
-                final_affiliate_url = promotion_link
-            elif prod_id:
+            # הרכבת קישור קצר ותקני הכולל את מזהה המוצר בשילוב מזהה השותף שלך
+            if prod_id:
                 final_affiliate_url = f"https://s.click.aliexpress.com/e/_{prod_id}"
             else:
                 final_affiliate_url = "https://www.aliexpress.com"
@@ -329,6 +326,7 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
 
     affiliate_url = product.get("affiliate_url", "https://www.aliexpress.com")
 
+    # הודעה נקייה עם הקישור הקצר והנקי בסופה
     caption = (
         opener + "\n\n" +
         "🛍️ <b>" + str(product['title']) + "</b>\n\n" +

@@ -29,7 +29,7 @@ ALIEXPRESS_TRACKING_ID = os.getenv("ALIEXPRESS_TRACKING_ID", "default")
 
 TARGET_CURRENCY = "ILS"
 TARGET_LANGUAGE = "HE"
-SHIP_TO_COUNTRY = "IL"  # מוגדר במדויק לישראל בלבד!
+SHIP_TO_COUNTRY = "IL"
 USD_TO_ILS_RATE = 3.75
 
 HISTORY_FILE = "sent_products.json"
@@ -42,7 +42,6 @@ SITEWIDE_COUPONS: List[Tuple[float, float, str, str]] = [
     (990.0, 130.0, "AEIL35", "$35 הנחה בקנייה מעל $269"),
 ]
 
-# מילות מפתח ממוקדות למוצרים פופולריים ומבוקשים שנשלחים לישראל
 SEARCH_KEYWORDS = [
     "ugreen usbc charger",
     "baseus car holder",
@@ -195,7 +194,7 @@ def get_demo_product() -> Dict[str, Any]:
             "sale_price_ils": 165.0,
             "rating": "4.9 ⭐",
             "orders": 5400,
-            "affiliate_url": "https://s.click.aliexpress.com/e/_demo1001",
+            "affiliate_url": "https://www.aliexpress.com/",
             "images": [
                 "https://picsum.photos/seed/earbuds1/600/600",
             ],
@@ -217,7 +216,6 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
     keyword = random.choice(SEARCH_KEYWORDS)
     api_url = "https://api-sg.aliexpress.com/sync"
 
-    # פרמטרים מוגדרים במדויק לישראל, מטבע שקלי, וסינון מוצרים פעילים
     params = {
         "app_key": ALIEXPRESS_APP_KEY,
         "method": "aliexpress.affiliate.product.query",
@@ -275,9 +273,14 @@ def fetch_random_aliexpress_product() -> Dict[str, Any]:
             )
             orig_price = float(chosen.get("target_original_price", sale_price * 1.3))
 
-            # יצירת קישור מקוצר ונקי שמותאם ישירות למוצר
-            if prod_id:
-                final_affiliate_url = f"https://s.click.aliexpress.com/e/_{prod_id}"
+            # תיקון קריטי: בניית קישור ישיר למוצר שכולל את מזהה המוצר ומזהה המעקב שלך בצורה שמונעת הפניה ל-best
+            detail_url = chosen.get("product_detail_url", "")
+            if detail_url:
+                # ניקוי פרמטרים ישנים מהכתובת המקורית והוספת מזהה המעקב שלך בצורה בטוחה
+                base_clean_url = detail_url.split("?")[0]
+                final_affiliate_url = f"{base_clean_url}?aff_fcid=&tt=cps&aff_fsk=&aff_plat=&aff_trace_key=&terminal_id=&sku_id=&trackingId={ALIEXPRESS_TRACKING_ID}"
+            elif prod_id:
+                final_affiliate_url = f"https://www.aliexpress.com/item/{prod_id}.html?trackingId={ALIEXPRESS_TRACKING_ID}"
             else:
                 final_affiliate_url = "https://www.aliexpress.com"
 
@@ -336,7 +339,7 @@ def format_deal_caption(product: Dict[str, Any], best_coupon: Dict[str, Any]) ->
         "💰 <b>מחיר מקורי:</b> <s>" + f"{orig_price:.0f}" + " ₪</s>\n" +
         "✅ <b>מחיר סופי אחרי קופון:</b> <b>" + f"{final_price:.0f}" + " ₪ בלבד!</b> (חיסכון של " + str(discount_pct) + "% / " + f"{total_saved:.0f}" + " ₪)\n\n" +
         coupon_line + "\n\n" +
-        "👉 <a href=\"" + affiliate_url + "\"><b>למעבר למוצר ורכישה מהירה</b></a>"
+        "🔗 " + affiliate_url
     )
     return caption
 
@@ -350,7 +353,7 @@ def send_deal_to_telegram(chat_id: str) -> bool:
     caption = format_deal_caption(product, best_coupon)
     
     if len(caption) > 1023:
-        caption = caption[:1000] + "...\n\n👉 למעבר למוצר לחצו על הקישור למעלה!"
+        caption = caption[:1000] + "..."
 
     collage_io = create_product_collage(product.get("images", []))
 
@@ -390,7 +393,7 @@ def send_deal_to_telegram(chat_id: str) -> bool:
 
 def main() -> None:
     if RUN_ONCE:
-        success = send_deal_to_telegram(TELEGRAM_CHAT_ID)
+        success = send_deal_to_nested = send_deal_to_telegram(TELEGRAM_CHAT_ID)
         sys.exit(0 if success else 1)
 
     while True:
